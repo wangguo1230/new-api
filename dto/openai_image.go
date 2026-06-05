@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -149,6 +150,10 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				qualityRatio = 1.5
 			}
 		}
+	} else if tierRatio, applied := operation_setting.GetImageTierRatioForModel(i.Model, i.Size); applied {
+		// 白名单模型：按 1K/2K/4K 分辨率档位计费(基础价 × 档位倍率)。
+		// 档位只看分辨率，qualityRatio 保持 1.0。
+		sizeRatio = tierRatio
 	}
 
 	// n is NOT included here; it is handled via OtherRatio("n") in

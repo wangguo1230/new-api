@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -149,6 +150,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	if len(request.Size) > 0 {
 		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
+		// 白名单模型按 1K/2K/4K 档位计费时，附带展示实际计费档位，便于对账
+		if operation_setting.IsImageTierModel(info.OriginModelName) {
+			if tier, ok := operation_setting.ClassifyImageBillingTier(request.Size); ok {
+				logContent = append(logContent, fmt.Sprintf("档位 %s", tier))
+			}
+		}
 	}
 	if len(quality) > 0 {
 		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))

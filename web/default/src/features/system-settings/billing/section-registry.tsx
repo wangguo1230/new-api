@@ -21,6 +21,7 @@ import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
+import { ImageTierSettings } from '../models/image-tier-settings'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -123,6 +124,16 @@ const BILLING_SECTIONS = [
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['groups']}
+      />
+    ),
+  },
+  {
+    id: 'image-tier-pricing',
+    titleKey: 'Image Tier Pricing',
+    build: (settings: BillingSettings) => (
+      <ImageTierSettings
+        tierRatiosDefault={settings['image_tier_price_setting.tier_ratios']}
+        modelsDefault={settings['image_tier_price_setting.models']}
       />
     ),
   },
