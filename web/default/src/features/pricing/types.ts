@@ -45,6 +45,11 @@ export type PricingModel = {
   image_ratio?: number | null
   audio_ratio?: number | null
   audio_completion_ratio?: number | null
+  /**
+   * 1K/2K/4K 档位倍率,仅对启用了图片档位计费的按次计费模型有值。
+   * 例如 { "1K": 1, "2K": 1.5, "4K": 2 }。为空表示该模型不按档位计费。
+   */
+  image_tier_ratios?: Record<string, number> | null
   enable_groups: string[]
   tags?: string
   supported_endpoint_types?: string[]

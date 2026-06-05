@@ -36,6 +36,7 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import {
+  formatImageTierPrices,
   formatPrice,
   formatRequestPrice,
   stripTrailingZeros,
@@ -241,6 +242,34 @@ export function usePricingColumns(
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
                 / {tokenUnitLabel} tokens
+              </div>
+            </div>
+          )
+        }
+
+        // 启用了 1K/2K/4K 档位计费的按次图片模型：分档展示价格
+        const tierPrices = formatImageTierPrices(
+          model,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate
+        )
+        if (tierPrices.length > 0) {
+          return (
+            <div className='min-w-[120px] space-y-0.5'>
+              {tierPrices.map((tp) => (
+                <div
+                  key={tp.tier}
+                  className='font-mono text-xs tabular-nums'
+                >
+                  <span className='text-muted-foreground/60 mr-1'>
+                    {tp.tier}
+                  </span>
+                  {tp.price}
+                </div>
+              ))}
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('request')}
               </div>
             </div>
           )

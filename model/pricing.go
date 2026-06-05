@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -35,7 +36,10 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	// ImageTierRatios 仅对启用了 1K/2K/4K 档位计费的按次计费图片模型有值，
+	// 供模型广场展示各档位价格(基础价 × 档位倍率)。为空表示未启用档位计费。
+	ImageTierRatios map[string]float64 `json:"image_tier_ratios,omitempty"`
+	PricingVersion  string             `json:"pricing_version,omitempty"`
 }
 
 type PricingVendor struct {
@@ -322,6 +326,19 @@ func updatePricing() {
 		}
 		if imageRatio, ok := ratio_setting.GetImageRatio(model); ok {
 			pricing.ImageRatio = &imageRatio
+		}
+		// 档位计费仅对按次计费(price-based)模型生效，与实际计费路径保持一致；
+		// 据此为模型广场提供各档位倍率，使展示价格与扣费一致。
+		if pricing.QuotaType == 1 && operation_setting.IsImageTierModel(model) {
+			tierRatios := make(map[string]float64, 3)
+			for _, tier := range []string{operation_setting.ImageBillingTier1K, operation_setting.ImageBillingTier2K, operation_setting.ImageBillingTier4K} {
+				if r, applied := operation_setting.GetImageTierRatioForModel(model, tier); applied {
+					tierRatios[tier] = r
+				}
+			}
+			if len(tierRatios) > 0 {
+				pricing.ImageTierRatios = tierRatios
+			}
 		}
 		if ratio_setting.ContainsAudioRatio(model) {
 			audioRatio := ratio_setting.GetAudioRatio(model)

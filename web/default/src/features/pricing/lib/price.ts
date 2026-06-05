@@ -262,6 +262,59 @@ export function formatFixedPrice(
 }
 
 /**
+ * Format per-tier prices (1K/2K/4K) for pay-per-request image models that enable
+ * size-tier billing. Mirrors the actual billing path: model_price × tierRatio ×
+ * minGroupRatio, so the marketplace display matches what gets charged.
+ *
+ * Returns an empty array when the model has no tier ratios, so callers can fall
+ * back to the single-price rendering.
+ */
+export function formatImageTierPrices(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): Array<{ tier: string; price: string }> {
+  const tierRatios = model.image_tier_ratios
+  if (
+    model.quota_type !== QUOTA_TYPE_VALUES.REQUEST ||
+    !tierRatios ||
+    Object.keys(tierRatios).length === 0
+  ) {
+    return []
+  }
+
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+
+  return ['1K', '2K', '4K']
+    .filter((tier) => hasRatio(tierRatios[tier]))
+    .map((tier) => {
+      let priceInUSD =
+        (model.model_price || 0) * Number(tierRatios[tier]) * minRatio
+      priceInUSD = applyRechargeRate(
+        priceInUSD,
+        showWithRecharge,
+        priceRate,
+        usdExchangeRate
+      )
+      return {
+        tier,
+        price: stripTrailingZeros(
+          formatCurrencyFromUSD(priceInUSD, {
+            digitsLarge: 4,
+            digitsSmall: 4,
+            abbreviate: false,
+          })
+        ),
+      }
+    })
+}
+
+/**
  * Format fixed price for pay-per-request models (minimum price from all groups)
  */
 export function formatRequestPrice(
