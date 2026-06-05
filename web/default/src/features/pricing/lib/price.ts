@@ -315,6 +315,54 @@ export function formatImageTierPrices(
 }
 
 /**
+ * Per-tier prices anchored to a SPECIFIC group. Used by the model-details
+ * base-price card (which uses a base group, not the minimum group).
+ * price = model_price × tierRatio × groupRatio[group].
+ */
+export function formatImageTierPricesForGroup(
+  model: PricingModel,
+  group: string,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  groupRatio: Record<string, number> = {}
+): Array<{ tier: string; price: string }> {
+  const tierRatios = model.image_tier_ratios
+  if (
+    model.quota_type !== QUOTA_TYPE_VALUES.REQUEST ||
+    !tierRatios ||
+    Object.keys(tierRatios).length === 0
+  ) {
+    return []
+  }
+
+  const ratio = groupRatio[group] || 1
+
+  return ['1K', '2K', '4K']
+    .filter((tier) => hasRatio(tierRatios[tier]))
+    .map((tier) => {
+      let priceInUSD =
+        (model.model_price || 0) * Number(tierRatios[tier]) * ratio
+      priceInUSD = applyRechargeRate(
+        priceInUSD,
+        showWithRecharge,
+        priceRate,
+        usdExchangeRate
+      )
+      return {
+        tier,
+        price: stripTrailingZeros(
+          formatCurrencyFromUSD(priceInUSD, {
+            digitsLarge: 4,
+            digitsSmall: 4,
+            abbreviate: false,
+          })
+        ),
+      }
+    })
+}
+
+/**
  * Format fixed price for pay-per-request models (minimum price from all groups)
  */
 export function formatRequestPrice(

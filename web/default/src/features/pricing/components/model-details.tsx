@@ -62,7 +62,11 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+  formatImageTierPricesForGroup,
+} from '../lib/price'
 import type {
   Modality,
   ModelCapability,
@@ -478,24 +482,51 @@ function PriceSection(props: {
   }
 
   if (!isTokenBased) {
+    // 启用了 1K/2K/4K 档位计费的按次图片模型：分档展示价格
+    const tierPrices = formatImageTierPricesForGroup(
+      props.model,
+      baseGroupKey,
+      props.showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate,
+      baseGroupRatioMap
+    )
     return (
       <section>
         <SectionTitle>{t('Base Price')}</SectionTitle>
-        <div className='flex items-baseline justify-between'>
-          <span className='text-muted-foreground text-sm'>
-            {t('Per request')}
-          </span>
-          <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-            {formatFixedPrice(
-              props.model,
-              baseGroupKey,
-              props.showRechargePrice,
-              props.priceRate,
-              props.usdExchangeRate,
-              baseGroupRatioMap
-            )}
-          </span>
-        </div>
+        {tierPrices.length > 0 ? (
+          <div className='space-y-1'>
+            {tierPrices.map((tp) => (
+              <div
+                key={tp.tier}
+                className='flex items-baseline justify-between'
+              >
+                <span className='text-muted-foreground text-sm'>
+                  {t('Per request')} · {tp.tier}
+                </span>
+                <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+                  {tp.price}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className='flex items-baseline justify-between'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Per request')}
+            </span>
+            <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+              {formatFixedPrice(
+                props.model,
+                baseGroupKey,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate,
+                baseGroupRatioMap
+              )}
+            </span>
+          </div>
+        )}
       </section>
     )
   }
