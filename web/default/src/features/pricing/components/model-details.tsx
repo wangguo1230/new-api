@@ -890,14 +890,38 @@ function GroupPricingSection(props: {
                     </>
                   ) : (
                     <TableCell className='py-2.5 text-right font-mono'>
-                      {formatFixedPrice(
-                        props.model,
-                        group,
-                        showRechargePrice,
-                        props.priceRate,
-                        props.usdExchangeRate,
-                        props.groupRatio
-                      )}
+                      {(() => {
+                        const tierPrices = formatImageTierPricesForGroup(
+                          props.model,
+                          group,
+                          showRechargePrice,
+                          props.priceRate,
+                          props.usdExchangeRate,
+                          props.groupRatio
+                        )
+                        if (tierPrices.length > 0) {
+                          return (
+                            <div className='space-y-0.5'>
+                              {tierPrices.map((tp) => (
+                                <div key={tp.tier}>
+                                  <span className='text-muted-foreground/60 mr-1 text-xs'>
+                                    {tp.tier}
+                                  </span>
+                                  {tp.price}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        }
+                        return formatFixedPrice(
+                          props.model,
+                          group,
+                          showRechargePrice,
+                          props.priceRate,
+                          props.usdExchangeRate,
+                          props.groupRatio
+                        )
+                      })()}
                     </TableCell>
                   )}
                 </TableRow>
