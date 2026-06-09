@@ -84,6 +84,10 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+	// 钩子：在返回前按规则改写"上游错误消息"（如上游余额不足等运维细节）。
+	// 见 service/upstream_error_rewrite.go 与 setting/operation_setting/upstream_error_rewrite.go。
+	defer func() { RewriteUpstreamError(ctx, newApiErr) }()
+
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)
