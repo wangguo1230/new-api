@@ -1,32 +1,34 @@
 #!/usr/bin/env bash
 #
-# pre-push — 推送前本地完整构建
+# pre-push — 推送前构建并推送生产 Docker 镜像
 #
-# 在 git push 前执行 scripts/build-release.sh，构建失败则阻止推送，
-# 确保推送的代码可编译、可产出完整发布产物。
+# 在 git push 前执行 scripts/build-image.sh：构建 linux/amd64 镜像并推送
+# :latest 与版本 tag 到 GHCR。构建/推送失败则阻止本次 git push。
 #
 # 跳过本次构建：
 #   NEWAPI_SKIP_BUILD=1 git push   或   git push --no-verify
+# 仅构建不推送镜像（仍会继续 git push）：
+#   PUSH=0 git push
 #
 set -euo pipefail
 
 if [ "${NEWAPI_SKIP_BUILD:-}" = "1" ]; then
-  echo "[pre-push] NEWAPI_SKIP_BUILD=1，跳过本地构建。"
+  echo "[pre-push] NEWAPI_SKIP_BUILD=1，跳过镜像构建。"
   exit 0
 fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT="$REPO_ROOT/scripts/build-release.sh"
+SCRIPT="$REPO_ROOT/scripts/build-image.sh"
 
 if [ ! -x "$SCRIPT" ]; then
   echo "[pre-push] 未找到可执行的 $SCRIPT，跳过。" >&2
   exit 0
 fi
 
-echo "[pre-push] 开始本地完整构建（跳过可用 --no-verify 或 NEWAPI_SKIP_BUILD=1）..."
+echo "[pre-push] 开始构建并推送 Docker 镜像（跳过可用 --no-verify 或 NEWAPI_SKIP_BUILD=1）..."
 if ! "$SCRIPT"; then
-  echo "[pre-push] 构建失败，已阻止推送。" >&2
+  echo "[pre-push] 镜像构建/推送失败，已阻止 git push。" >&2
   exit 1
 fi
-echo "[pre-push] 构建通过，允许推送。"
+echo "[pre-push] 镜像就绪，允许 git push。"
 exit 0
