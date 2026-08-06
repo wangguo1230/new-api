@@ -9,10 +9,11 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateResponsesRequest(c)
 	case types.RelayFormatOpenAIResponsesCompaction:
 		request, err = GetAndValidateResponsesCompactionRequest(c)
+	case types.RelayFormatOpenAIAlphaSearch:
+		request, err = GetAndValidateAlphaSearchRequest(c)
 
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
@@ -143,6 +146,26 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	if exceedsMaxTokensLimit(request.MaxOutputTokens) {
 		return nil, errors.New("max_output_tokens is invalid")
 	}
+	return request, nil
+}
+
+func GetAndValidateAlphaSearchRequest(c *gin.Context) (*dto.AlphaSearchRequest, error) {
+	request := &dto.AlphaSearchRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	rawBody, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	request.RawBody = rawBody
 	return request, nil
 }
 
@@ -259,6 +282,10 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		if imageRequest.N == nil || *imageRequest.N == 0 {
 			imageRequest.N = common.GetPointer(uint(1))
 		}
+	}
+
+	if tierRatio, applied := operation_setting.GetImageTierRatioForModel(imageRequest.Model, imageRequest.Size); applied {
+		imageRequest.TierSizeRatio = &tierRatio
 	}
 
 	return imageRequest, nil
