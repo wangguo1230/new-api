@@ -50,6 +50,7 @@ const defaultBillingSettings: BillingSettings = {
   ExposeRatioEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
+  'billing_setting.plugin_billing_expr': '{}',
   'tool_price_setting.prices': '{}',
   'image_tier_price_setting.tier_ratios': '{"1K":1,"2K":1.5,"4K":2}',
   'image_tier_price_setting.models': '[]',
