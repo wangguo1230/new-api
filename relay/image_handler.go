@@ -181,22 +181,22 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		quality = "standard"
 	}
 
-	var logContent []string
+	var logContent []*common.Message
 
 	if len(request.Size) > 0 {
-		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
+		logContent = append(logContent, common.NewMessage("Size {{size}}", map[string]any{"size": request.Size}))
 		// 白名单模型按 1K/2K/4K 档位计费时，附带展示实际计费档位，便于对账
 		if operation_setting.IsImageTierModel(info.OriginModelName) {
 			if tier, ok := operation_setting.ClassifyImageBillingTier(request.Size); ok {
-				logContent = append(logContent, fmt.Sprintf("档位 %s", tier))
+				logContent = append(logContent, common.NewMessage("Image tier {{tier}}", map[string]any{"tier": tier}))
 			}
 		}
 	}
 	if len(quality) > 0 {
-		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))
+		logContent = append(logContent, common.NewMessage("Quality {{quality}}", map[string]any{"quality": quality}))
 	}
 	if imageN > 0 {
-		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
+		logContent = append(logContent, common.NewMessage("Image count {{count}}", map[string]any{"count": imageN}))
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
