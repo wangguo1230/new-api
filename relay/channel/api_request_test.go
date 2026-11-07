@@ -5,24 +5,96 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewTaskAPIRequestInheritsClientCancellation(t *testing.T) {
+type cancellationTestAdaptor struct {
+	Adaptor
+	url string
+}
+
+func (a *cancellationTestAdaptor) GetRequestURL(*relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+
+func (a *cancellationTestAdaptor) SetupRequestHeader(*gin.Context, *http.Header, *relaycommon.RelayInfo) error {
+	return nil
+}
+
+func TestNewUpstreamRequestInheritsClientCancellation(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	requestContext, cancel := context.WithCancel(context.Background())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(requestContext)
 
-	upstream, err := newTaskAPIRequest(c, "https://provider.example/tasks", nil)
+	upstream, err := newUpstreamRequest(c, "https://provider.example/tasks", nil)
 	require.NoError(t, err)
 	cancel()
 
 	require.ErrorIs(t, upstream.Context().Err(), context.Canceled)
+}
+
+func TestDoApiRequestStopsWhenClientRequestIsCanceled(t *testing.T) {
+	service.InitHttpClient()
+	requestStarted := make(chan struct{})
+	upstreamCanceled := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+		close(upstreamCanceled)
+	}))
+	defer server.Close()
+
+	requestContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(requestContext)
+
+	requestDone := make(chan error, 1)
+	go func() {
+		resp, err := DoApiRequest(
+			&cancellationTestAdaptor{url: server.URL},
+			c,
+			&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}},
+			nil,
+		)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		requestDone <- err
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("upstream request did not start")
+	}
+	cancel()
+
+	select {
+	case err := <-requestDone:
+		require.ErrorIs(t, err, context.Canceled)
+		var apiErr *types.NewAPIError
+		require.ErrorAs(t, err, &apiErr)
+		assert.True(t, types.IsSkipRetryError(apiErr))
+		assert.False(t, types.IsRecordErrorLog(apiErr))
+	case <-time.After(5 * time.Second):
+		t.Fatal("outbound request did not stop after client cancellation")
+	}
+	select {
+	case <-upstreamCanceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("upstream connection did not observe client cancellation")
+	}
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
