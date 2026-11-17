@@ -3,6 +3,8 @@ package billing_setting_test
 import (
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
@@ -17,6 +19,130 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGemini4HydrogenBuiltinBilling(t *testing.T) {
+	expression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-hydrogen")
+	require.True(t, ok)
+	xhighExpression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-hydrogen-xhigh")
+	require.True(t, ok)
+	assert.Equal(t, expression, xhighExpression)
+
+	usage := &dto.Usage{
+		PromptTokens:        1000,
+		CompletionTokens:    100,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 400},
+	}
+	params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+	result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{
+		ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+	}, params)
+	require.NoError(t, err)
+	assert.Equal(t, 840, result.ActualQuotaAfterGroup)
+}
+
+func TestGemini4CarbonBuiltinBilling(t *testing.T) {
+	expression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-carbon")
+	require.True(t, ok)
+
+	cutover := time.Date(2026, time.December, 1, 8, 0, 0, 0, time.UTC)
+	usage := &dto.Usage{
+		PromptTokens:        1000,
+		CompletionTokens:    100,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 400},
+	}
+	params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+	for _, tc := range []struct {
+		at   time.Time
+		tier string
+		cost float64
+	}{
+		{cutover.Add(-time.Nanosecond), "introductory", 2240},
+		{cutover, "standard", 4480},
+	} {
+		t.Run(tc.tier, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				time.Sleep(time.Until(tc.at))
+				cost, trace, err := billingexpr.RunExpr(expression, params)
+				require.NoError(t, err)
+				assert.Equal(t, tc.tier, trace.MatchedTier)
+				assert.Equal(t, tc.cost, cost)
+			})
+		})
+	}
+}
+
+func TestClaudeFable52BuiltinBilling(t *testing.T) {
+	const modelName = "claude-fable-5-2"
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		*settings = saved
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(modelName))
+	expression, ok := billing_setting.GetBillingExpr(modelName)
+	require.True(t, ok)
+
+	for _, tc := range []struct {
+		name                                    string
+		input, output, cached, write5m, write1h int
+		quota                                   int
+	}{
+		{"input", 1000, 0, 0, 0, 0, 4000},
+		{"output", 0, 1000, 0, 0, 0, 20000},
+		{"cache read", 0, 0, 1000, 0, 0, 100},
+		{"5m cache write", 0, 0, 0, 1000, 0, 5000},
+		{"1h cache write", 0, 0, 0, 0, 1000, 8000},
+		{"mixed cache TTLs", 1000, 100, 2000, 3000, 4000, 53200},
+		{"200k context", 1000, 100, 199000, 0, 0, 25900},
+		{"above 200k context", 1001, 100, 199000, 0, 0, 25904},
+		{"1M context", 1000, 100, 999000, 0, 0, 105900},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usage := &dto.Usage{
+				PromptTokens: tc.input, CompletionTokens: tc.output, UsageSemantic: "anthropic",
+				PromptTokensDetails:         dto.InputTokenDetails{CachedTokens: tc.cached, CachedCreationTokens: tc.write5m + tc.write1h},
+				ClaudeCacheCreation5mTokens: tc.write5m, ClaudeCacheCreation1hTokens: tc.write1h,
+			}
+			params := service.BuildTieredTokenParams(usage, true, billingexpr.UsedVars(expression))
+			result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{
+				ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+			}, params)
+			require.NoError(t, err)
+			assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+		})
+	}
+
+	for _, tc := range []struct {
+		name, mode, expr, ratios, prices, wantMode string
+	}{
+		{"custom expression", "tiered_expr", `tier("custom", p * 7)`, `{}`, `{}`, "tiered_expr"},
+		{"explicit ratio mode", "ratio", "", `{}`, `{}`, "ratio"},
+		{"existing free token price", "", "", `{"claude-fable-5-2":0}`, `{}`, "ratio"},
+		{"existing per-call price", "", "", `{}`, `{"claude-fable-5-2":0.1}`, "ratio"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+			if tc.mode != "" {
+				settings.BillingMode[modelName] = tc.mode
+			}
+			if tc.expr != "" {
+				settings.BillingExpr[modelName] = tc.expr
+			}
+			require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(tc.ratios))
+			require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(tc.prices))
+			assert.Equal(t, tc.wantMode, billing_setting.GetBillingMode(modelName))
+			actual, ok := billing_setting.GetBillingExpr(modelName)
+			assert.Equal(t, tc.expr, actual)
+			assert.Equal(t, tc.expr != "", ok)
+		})
+	}
+}
 
 func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)

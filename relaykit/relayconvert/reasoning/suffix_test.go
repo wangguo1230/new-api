@@ -78,6 +78,15 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 			wantMode:           ModeEnabled,
 		},
 		{
+			name:               "gemini 4 hydrogen xhigh alias",
+			model:              "gemini-4-hydrogen-xhigh",
+			allowThinkingAlias: true,
+			wantBase:           "gemini-4-hydrogen",
+			wantFound:          true,
+			wantMode:           ModeEnabled,
+			wantEffort:         EffortXHigh,
+		},
+		{
 			name:               "malformed thinking budget",
 			model:              "claude-3-7-sonnet-thinking-abc",
 			allowThinkingAlias: true,

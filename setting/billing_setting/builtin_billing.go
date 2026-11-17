@@ -9,9 +9,24 @@ const deepSeekPeak = `weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") 
 
 const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 + c * 1.2) : tier("off_peak", p * 0.15 + cr * 0.003 + c * 0.6)`
 
+const gemini4HydrogenExpr = `tier("standard", p * 1.5 + c * 7.5 + cr * 0.075)`
+
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://aistudio.google.com/docs/pricing#gemini-4-hydrogen (Standard).
+	// Hydrogen only supports implicit caching.
+	"gemini-4-hydrogen":       gemini4HydrogenExpr,
+	"gemini-4-hydrogen-xhigh": gemini4HydrogenExpr,
+	// https://aistudio.google.com/docs/pricing#gemini-4-carbon (Standard).
+	// Use midnight Pacific Time, the start of the Google Cloud billing day.
+	// Carbon only supports implicit caching.
+	"gemini-4-carbon": `now() < date("2026-12-01T08:00:00Z") ? tier("introductory", p * 2 + c * 10 + cr * 0.1) : tier("standard", p * 4 + c * 20 + cr * 0.2)`,
+	// https://platform.claude.com/docs/en/about-claude/pricing (Standard, 2026-11-10).
+	// The full 1M context window uses the same rates; cc and cc1h are the
+	// 5m and 1h cache writes. Incoming speed/inference_geo may be filtered by
+	// the channel, so they do not select premium pricing here.
+	"claude-fable-5-2": `tier("standard", p * 8 + c * 40 + cr * 0.2 + cc * 10 + cc1h * 16)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
