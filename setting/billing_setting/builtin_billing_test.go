@@ -240,6 +240,56 @@ func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	}
 }
 
+func TestGPT62BuiltinBilling(t *testing.T) {
+	for _, modelCase := range []struct {
+		name           string
+		standardQuota  int
+		boundaryQuota  int
+		longQuota      int
+		writeQuota     int
+		longWriteQuota int
+	}{
+		{name: "gpt-6.2-astra", standardQuota: 6000, boundaryQuota: 368000, longQuota: 726008, writeQuota: 59800, longWriteQuota: 1020000},
+		{name: "gpt-6.2-sol", standardQuota: 1500, boundaryQuota: 92000, longQuota: 181502, writeQuota: 14950, longWriteQuota: 255000},
+	} {
+		t.Run(modelCase.name, func(t *testing.T) {
+			expression, ok := billing_setting.GetBuiltinBillingExpr(modelCase.name)
+			require.True(t, ok)
+
+			for _, usageCase := range []struct {
+				name                                       string
+				input, output, cached, written, written12h int
+				quota                                      int
+			}{
+				{name: "standard", input: 1000, output: 100, quota: modelCase.standardQuota},
+				{name: "cache at context boundary", input: 272000, output: 1000, cached: 200000, written: 20000, quota: modelCase.boundaryQuota},
+				{name: "whole request above boundary", input: 272001, output: 1000, cached: 200000, written: 20000, quota: modelCase.longQuota},
+				{name: "12h cache writes", input: 12000, cached: 4000, written: 7000, written12h: 4000, quota: modelCase.writeQuota},
+				{name: "12h cache writes above boundary", input: 300000, cached: 200000, written: 20000, written12h: 10000, quota: modelCase.longWriteQuota},
+			} {
+				t.Run(usageCase.name, func(t *testing.T) {
+					usage := &dto.Usage{
+						PromptTokens: usageCase.input, CompletionTokens: usageCase.output,
+						PromptTokensDetails: dto.InputTokenDetails{
+							CachedTokens: usageCase.cached, CacheWriteTokens: usageCase.written,
+							CacheWriteTokensDetails: &dto.CacheWriteTokenDetails{
+								TTL30mTokens: usageCase.written - usageCase.written12h,
+								TTL12hTokens: usageCase.written12h,
+							},
+						},
+					}
+					params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+					result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+						ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+					}, params, billingexpr.RequestInput{})
+					require.NoError(t, err)
+					assert.Equal(t, usageCase.quota, result.ActualQuotaAfterGroup)
+				})
+			}
+		})
+	}
+}
+
 func TestImageModelBuiltinPricesAndOverrides(t *testing.T) {
 	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
 	saved := *settings

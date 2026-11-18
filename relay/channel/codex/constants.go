@@ -1,6 +1,8 @@
 package codex
 
 var ModelList = []string{
+	"gpt-6.2-astra",
+	"gpt-6.2-sol",
 	"gpt-5.6-sol",
 	"gpt-5.6-terra",
 	"gpt-5.6-luna",

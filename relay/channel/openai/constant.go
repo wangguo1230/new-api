@@ -1,6 +1,7 @@
 package openai
 
 var ModelList = []string{
+	"gpt-6.2-astra", "gpt-6.2-sol",
 	"gpt-6-astra",
 	"gpt-3.5-turbo", "gpt-3.5-turbo-0613", "gpt-3.5-turbo-1106", "gpt-3.5-turbo-0125",
 	"gpt-3.5-turbo-16k", "gpt-3.5-turbo-16k-0613",
