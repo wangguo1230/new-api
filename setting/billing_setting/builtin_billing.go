@@ -11,9 +11,15 @@ const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 +
 
 const gemini4HydrogenExpr = `tier("standard", p * 1.5 + c * 7.5 + cr * 0.075)`
 
+const gemini4NeonExpr = `tier("standard", p * 3 + c * 15 + cr * 0.15)`
+
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://aistudio.google.com/docs/pricing#gemini-4-neon (Standard).
+	// Neon only supports implicit caching.
+	"gemini-4-neon":       gemini4NeonExpr,
+	"gemini-4-neon-xhigh": gemini4NeonExpr,
 	// https://aistudio.google.com/docs/pricing#gemini-4-hydrogen (Standard).
 	// Hydrogen only supports implicit caching.
 	"gemini-4-hydrogen":       gemini4HydrogenExpr,

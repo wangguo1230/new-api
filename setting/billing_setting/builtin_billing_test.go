@@ -40,6 +40,26 @@ func TestGemini4HydrogenBuiltinBilling(t *testing.T) {
 	assert.Equal(t, 840, result.ActualQuotaAfterGroup)
 }
 
+func TestGemini4NeonBuiltinBilling(t *testing.T) {
+	expression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-neon")
+	require.True(t, ok)
+	xhighExpression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-neon-xhigh")
+	require.True(t, ok)
+	assert.Equal(t, expression, xhighExpression)
+
+	usage := &dto.Usage{
+		PromptTokens:        1000,
+		CompletionTokens:    100,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 400},
+	}
+	params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+	result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{
+		ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+	}, params)
+	require.NoError(t, err)
+	assert.Equal(t, 1680, result.ActualQuotaAfterGroup)
+}
+
 func TestGemini4CarbonBuiltinBilling(t *testing.T) {
 	expression, ok := billing_setting.GetBuiltinBillingExpr("gemini-4-carbon")
 	require.True(t, ok)

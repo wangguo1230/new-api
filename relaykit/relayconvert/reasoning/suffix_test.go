@@ -87,6 +87,15 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 			wantEffort:         EffortXHigh,
 		},
 		{
+			name:               "gemini 4 neon xhigh alias",
+			model:              "gemini-4-neon-xhigh",
+			allowThinkingAlias: true,
+			wantBase:           "gemini-4-neon",
+			wantFound:          true,
+			wantMode:           ModeEnabled,
+			wantEffort:         EffortXHigh,
+		},
+		{
 			name:               "malformed thinking budget",
 			model:              "claude-3-7-sonnet-thinking-abc",
 			allowThinkingAlias: true,

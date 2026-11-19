@@ -58,6 +58,7 @@ func geminiCapabilitiesFor(model string) geminiCapabilities {
 		return geminiCapabilities{kind: geminiThinkingBudget, supportsDisable: true, maxBudget: 24576}
 	case strings.HasPrefix(model, "gemini-3"),
 		strings.HasPrefix(model, "gemini-4-argon"),
+		strings.HasPrefix(model, "gemini-4-neon"),
 		strings.HasPrefix(model, "gemini-4-hydrogen"):
 		return geminiCapabilities{kind: geminiThinkingLevel}
 	default:
@@ -221,6 +222,8 @@ func geminiDefaultEffort(model string) Effort {
 		return EffortHigh
 	case strings.HasPrefix(model, "gemini-4-argon"):
 		return EffortMedium
+	case strings.HasPrefix(model, "gemini-4-neon"):
+		return EffortHigh
 	case strings.HasPrefix(model, "gemini-4-hydrogen"):
 		return EffortHigh
 	case model == "gemini-flash-latest",
@@ -525,6 +528,15 @@ func geminiLevelForEffort(model string, effort Effort) (string, error) {
 			return string(EffortHigh), nil
 		case EffortMax:
 			return string(EffortMax), nil
+		}
+	case strings.HasPrefix(model, "gemini-4-neon"):
+		switch effort {
+		case EffortMinimal:
+			return string(EffortLow), nil
+		case EffortXHigh:
+			return string(EffortXHigh), nil
+		case EffortMax:
+			return string(EffortXHigh), nil
 		}
 	case strings.HasPrefix(model, "gemini-4-hydrogen"):
 		switch effort {

@@ -2,6 +2,7 @@ package gemini
 
 var ModelList = []string{
 	// stable version
+	"gemini-4-neon", "gemini-4-neon-xhigh",
 	"gemini-4-hydrogen", "gemini-4-hydrogen-xhigh", "gemini-4-carbon",
 	"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
 	"gemini-2.0-flash-001", "gemini-2.0-flash-lite-001", "gemini-2.0-flash-lite",
